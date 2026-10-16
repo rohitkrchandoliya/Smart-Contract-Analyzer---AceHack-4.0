@@ -1,54 +1,36 @@
-const BSC_API_KEY = "9ID4ZDDY4V1AQZMXZBIV42UEZY794RNE73";
-const MORALIS_API_KEY = "YOur-API";
-const BSC_API_URL = "https://api.bscscan.com/api";
-const MORALIS_API_URL = "https://deep-index.moralis.io/api/v2";
-
 async function analyzeContract() {
     const address = document.getElementById("contractAddress").value.trim();
-    if (!address) {
-        alert("Please enter a valid contract address!");
+    const output = document.getElementById("reportOutput");
+
+    if (!/^0x[a-fA-F0-9]{40}$/.test(address)) {
+        output.textContent = "Please enter a valid EVM contract address.";
         return;
     }
 
+    output.textContent = "Fetching contract metadata…";
     try {
-        const response = await fetch(`${BSC_API_URL}?module=contract&action=getsourcecode&address=${address}&apikey=${BSC_API_KEY}`);
+        const response = await fetch("/api/contract-analysis?address=" + encodeURIComponent(address));
         const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Could not analyze this address.");
 
-        if (data.status === "1" && data.result.length > 0) {
-            const contractData = data.result[0];
-            const balance = await fetchWalletBalance(address);
-            const riskLevel = Math.floor(Math.random() * 100);
-
-            document.getElementById("reportOutput").textContent = 
-                `✅ Contract Found:
-                Name: ${contractData.ContractName}
-                Compiler: ${contractData.CompilerVersion}
-                Verified: ${contractData.IsVerified ? "Yes" : "No"}
-                Chain: Binance Smart Chain
-                Wallet Balance: ${balance} BNB
-                Risk Level: ${riskLevel}%`;
-        } else {
-            document.getElementById("reportOutput").textContent = "❌ No Contract Found!";
-        }
+        const lines = [
+            "Contract: " + data.contractName,
+            "Compiler: " + data.compilerVersion,
+            "Verified source code: " + (data.verified ? "Yes" : "No"),
+            "Chain: " + data.chain,
+            "Wallet balance: " + (data.walletBalance === null ? "Unavailable (optional Moralis API not configured)" : data.walletBalance + " BNB"),
+            "",
+            "Security risk score: Not assessed. This tool retrieves contract metadata only; it does not run a vulnerability audit."
+        ];
+        output.textContent = lines.join("\n");
     } catch (error) {
-        document.getElementById("reportOutput").textContent = "❌ Error fetching contract data!";
+        output.textContent = error instanceof Error ? error.message : "Could not fetch contract data.";
     }
 }
 
-async function fetchWalletBalance(address) {
-    try {
-        const response = await fetch(`${MORALIS_API_URL}/${address}/balance?chain=bsc`, {
-            headers: { "X-API-Key": MORALIS_API_KEY }
-        });
-        const data = await response.json();
-        return data.balance ? (data.balance / 1e18).toFixed(4) : "0";
-    } catch (error) {
-        return "Error fetching balance";
-    }
+const darkModeToggle = document.getElementById("darkModeToggle");
+if (darkModeToggle) {
+    darkModeToggle.addEventListener("click", () => {
+        document.body.classList.toggle("dark-mode");
+    });
 }
-
-// Dark Mode Toggle
-document.getElementById("darkModeToggle").addEventListener("click", () => {
-    document.body.classList.toggle("dark-mode");
-});
-
